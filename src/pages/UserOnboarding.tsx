@@ -1,11 +1,21 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/context/AuthContext";
+
+// Add Facebook SDK type definitions
+declare global {
+  interface Window {
+    fbAsyncInit: () => void;
+    FB: {
+      init: (params: any) => void;
+      login: (callback: (response: any) => void, params: any) => void;
+    };
+  }
+}
 
 const UserOnboarding = () => {
   const { toast } = useToast();
@@ -15,7 +25,59 @@ const UserOnboarding = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [businessAccountId, setBusinessAccountId] = useState("");
 
-  // Simulate Facebook Login
+  // Initialize Facebook SDK
+  useEffect(() => {
+    // Load Facebook SDK script
+    const loadFacebookSDK = () => {
+      if (document.getElementById("facebook-jssdk")) return;
+      
+      const script = document.createElement("script");
+      script.id = "facebook-jssdk";
+      script.src = "https://connect.facebook.net/en_US/sdk.js";
+      script.async = true;
+      script.defer = true;
+      script.crossOrigin = "anonymous";
+      document.body.appendChild(script);
+    };
+
+    // Initialize Facebook SDK
+    window.fbAsyncInit = function() {
+      window.FB.init({
+        appId: '878254782770621',
+        autoLogAppEvents: true,
+        xfbml: true,
+        version: 'v22.0'
+      });
+    };
+
+    // Listen for Embedded Signup message
+    const handleWhatsAppSignupMessage = (event: MessageEvent) => {
+      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") return;
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'WA_EMBEDDED_SIGNUP') {
+          console.log('Signup data:', data);
+          // TODO: Send data to Netlify function or backend
+          toast({
+            title: "WhatsApp Signup Data Received",
+            description: "Successfully received data from WhatsApp Embedded Signup.",
+          });
+        }
+      } catch (err) {
+        console.error('Error parsing message:', err);
+      }
+    };
+
+    loadFacebookSDK();
+    window.addEventListener('message', handleWhatsAppSignupMessage);
+
+    // Cleanup event listener
+    return () => {
+      window.removeEventListener('message', handleWhatsAppSignupMessage);
+    };
+  }, [toast]);
+
+  // Simulate Facebook Login (keeping existing functionality)
   const handleFacebookLogin = () => {
     setIsConnecting(true);
     
@@ -34,7 +96,50 @@ const UserOnboarding = () => {
     }, 1500);
   };
 
-  // Connect WhatsApp Business Account
+  // Launch WhatsApp Business Embedded Signup
+  const launchWhatsAppSignup = () => {
+    if (!window.FB) {
+      toast({
+        title: "Facebook SDK Not Loaded",
+        description: "Please wait for the Facebook SDK to load or refresh the page.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Callback for login
+    const fbLoginCallback = (response: any) => {
+      if (response.authResponse) {
+        const code = response.authResponse.code;
+        console.log('Authorization code:', code);
+        // TODO: POST code to /api/exchange-token
+        toast({
+          title: "WhatsApp Authorization Successful",
+          description: "Successfully received authorization code for WhatsApp Business.",
+        });
+      } else {
+        console.log('Login failed:', response);
+        toast({
+          title: "WhatsApp Connection Failed",
+          description: "Could not connect to WhatsApp Business. Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    window.FB.login(fbLoginCallback, {
+      config_id: '758905643123355',
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: {
+        setup: {},
+        featureType: '',
+        sessionInfoVersion: '3',
+      }
+    });
+  };
+
+  // Connect WhatsApp Business Account (keeping existing functionality)
   const handleConnectWhatsApp = () => {
     if (!businessAccountId.trim()) {
       toast({
@@ -85,13 +190,23 @@ const UserOnboarding = () => {
             </ul>
           </div>
           
-          <Button 
-            className="w-full md:w-auto bg-[#1877F2] hover:bg-[#0d65d9]"
-            onClick={handleFacebookLogin}
-            disabled={isConnecting}
-          >
-            {isConnecting ? "Connecting..." : "Connect with Facebook"}
-          </Button>
+          <div className="flex flex-wrap gap-4">
+            <Button 
+              className="bg-[#1877F2] hover:bg-[#0d65d9]"
+              onClick={handleFacebookLogin}
+              disabled={isConnecting}
+            >
+              {isConnecting ? "Connecting..." : "Connect with Facebook"}
+            </Button>
+            
+            <Button
+              className="bg-[#25D366] hover:bg-[#128C7E]"
+              onClick={launchWhatsAppSignup}
+              disabled={isConnecting}
+            >
+              Connect WhatsApp Business
+            </Button>
+          </div>
         </div>
 
         <div>
