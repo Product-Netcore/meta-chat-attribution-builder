@@ -1,8 +1,4 @@
-// Use dynamic import for node-fetch
-let fetch;
-import('node-fetch').then(module => {
-  fetch = module.default;
-});
+const fetch = require('node-fetch').default;
 
 exports.handler = async (event) => {
   const { code } = JSON.parse(event.body || '{}');
