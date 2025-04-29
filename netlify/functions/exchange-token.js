@@ -1,4 +1,8 @@
-const fetch = require('node-fetch');
+// Use dynamic import for node-fetch
+let fetch;
+import('node-fetch').then(module => {
+  fetch = module.default;
+});
 
 exports.handler = async (event) => {
   const { code } = JSON.parse(event.body || '{}');
